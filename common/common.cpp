@@ -1941,6 +1941,20 @@ void common_embd_normalize(const float * inp, float * out, int n, int embd_norm)
     }
 }
 
+std::map<llama_token, float> common_embd_sparse(const llama_vocab * vocab, const llama_token * tokens, const float * weights, int n) {
+    std::map<llama_token, float> res;
+
+    for (int i = 0; i < n; i++) {
+        if (weights[i] <= 0.0f || (llama_vocab_get_attr(vocab, tokens[i]) & (LLAMA_TOKEN_ATTR_CONTROL | LLAMA_TOKEN_ATTR_UNKNOWN))) {
+            continue;
+        }
+        float & w = res[tokens[i]];
+        w = std::max(w, weights[i]);
+    }
+
+    return res;
+}
+
 float common_embd_similarity_cos(const float * embd1, const float * embd2, int n){
     double sum  = 0.0;
     double sum1 = 0.0;

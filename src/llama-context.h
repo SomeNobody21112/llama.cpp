@@ -81,6 +81,9 @@ struct llama_context {
 
     enum llama_pooling_type pooling_type() const;
 
+    // number of floats per output row in the embeddings buffer
+    uint32_t n_embd_row() const;
+
     float * get_logits();
     float * get_logits_ith(int32_t i);
 
@@ -313,7 +316,7 @@ private:
     buffer_view<float> logits = {nullptr, 0};
 
     // embeddings output (2-dimensional array: [n_outputs][n_embd])
-    // populated only when pooling_type == LLAMA_POOLING_TYPE_NONE
+    // populated only when pooling_type == LLAMA_POOLING_TYPE_NONE or LLAMA_POOLING_TYPE_SPARSE
     buffer_view<float> embd = {nullptr, 0};
 
     // hidden state required by the nextn layers (2-dimensional array: [n_outputs][n_embd])

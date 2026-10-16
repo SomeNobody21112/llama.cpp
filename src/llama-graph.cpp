@@ -4002,7 +4002,11 @@ void llm_graph_context::build_pooling(
         ggml_tensor * cls_b,
         ggml_tensor * cls_out,
         ggml_tensor * cls_out_b,
-        ggml_tensor * cls_norm) const {
+        ggml_tensor * cls_norm,
+        ggml_tensor * colbert,
+        ggml_tensor * colbert_b,
+        ggml_tensor * sparse,
+        ggml_tensor * sparse_b) const {
     if (!cparams.embeddings) {
         // a graph without logits still computes t_embd, so that it is never empty
         if (res->t_logits == nullptr && res->t_embd != nullptr) {
@@ -4031,6 +4035,24 @@ void llm_graph_context::build_pooling(
         case LLAMA_POOLING_TYPE_NONE:
             {
                 cur = inp;
+
+                // ColBERT (late interaction) head: project every token vector
+                if (colbert) {
+                    cur = ggml_mul_mat(ctx0, colbert, cur);
+                    if (colbert_b) {
+                        cur = ggml_add(ctx0, cur, colbert_b);
+                    }
+                }
+            } break;
+        case LLAMA_POOLING_TYPE_SPARSE:
+            {
+                // sparse (lexical) head: one non-negative weight per token
+                GGML_ASSERT(sparse != nullptr && "pooling type 'sparse' requires a model with a sparse head");
+                cur = ggml_mul_mat(ctx0, sparse, inp);
+                if (sparse_b) {
+                    cur = ggml_add(ctx0, cur, sparse_b);
+                }
+                cur = ggml_relu(ctx0, cur);
             } break;
         case LLAMA_POOLING_TYPE_MEAN:
             {

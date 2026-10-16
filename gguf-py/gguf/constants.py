@@ -940,6 +940,8 @@ class MODEL_TENSOR(IntEnum):
     CLS                  = auto() # classifier
     CLS_OUT              = auto() # classifier output projection
     CLS_NORM             = auto()
+    COLBERT              = auto() # bge-m3 ColBERT (multi-vector) head
+    SPARSE               = auto() # bge-m3 sparse (lexical) head
     DECISION_HIDDEN_NORM          = auto()
     DECISION_PROJ_MEMORY          = auto()
     DECISION_PROJ_QUESTION        = auto()
@@ -1754,6 +1756,8 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.CLS:                       "cls",
     MODEL_TENSOR.CLS_OUT:                   "cls.output",
     MODEL_TENSOR.CLS_NORM:                  "cls.norm",
+    MODEL_TENSOR.COLBERT:                   "colbert",
+    MODEL_TENSOR.SPARSE:                    "sparse",
     MODEL_TENSOR.DECISION_HIDDEN_NORM:          "decision.hidden_norm",
     MODEL_TENSOR.DECISION_PROJ_MEMORY:          "decision.proj_memory",
     MODEL_TENSOR.DECISION_PROJ_QUESTION:        "decision.proj_question",
@@ -2635,6 +2639,8 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.LAYER_OUT_NORM,
         MODEL_TENSOR.CLS,
         MODEL_TENSOR.CLS_OUT,
+        MODEL_TENSOR.COLBERT,
+        MODEL_TENSOR.SPARSE,
     ],
     MODEL_ARCH.MODERN_BERT: [
         MODEL_TENSOR.TOKEN_EMBD,
@@ -6136,6 +6142,7 @@ class PoolingType(IntEnum):
     CLS  = 2
     LAST = 3
     RANK = 4
+    SPARSE = 5
 
 
 class GGMLQuantizationType(IntEnum):

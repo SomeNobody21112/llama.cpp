@@ -307,6 +307,10 @@ llama_context::llama_context(
         }
     }
 
+    if (cparams.pooling_type == LLAMA_POOLING_TYPE_SPARSE && model.sparse == nullptr) {
+        throw std::runtime_error("pooling type 'sparse' requires a model with a sparse head");
+    }
+
     if (params.attention_type == LLAMA_ATTENTION_TYPE_UNSPECIFIED) {
         cparams.causal_attn = hparams.causal_attn;
     } else {
@@ -1006,6 +1010,11 @@ bool llama_context::memory_update(bool optimize) {
     return true;
 }
 
+uint32_t llama_context::n_embd_row() const {
+    // sparse pooling outputs a single lexical weight per token
+    return cparams.pooling_type == LLAMA_POOLING_TYPE_SPARSE ? 1 : model.hparams.n_embd_out();
+}
+
 enum llama_pooling_type llama_context::pooling_type() const {
     return cparams.pooling_type;
 }
@@ -1084,8 +1093,7 @@ float * llama_context::get_embeddings_ith(int32_t i) {
         }
 
         const int64_t j = output_resolve_row(i);
-        const uint32_t n_embd_out = model.hparams.n_embd_out();
-        return embd.data + j*n_embd_out;
+        return embd.data + j*n_embd_row();
     } catch (const std::exception & err) {
         LLAMA_LOG_ERROR("%s: invalid embeddings id %d, reason: %s\n", __func__, i, err.what());
 #ifndef NDEBUG
@@ -1679,10 +1687,11 @@ int llama_context::encode(const llama_batch_ext & batch_inp) {
 
         switch (cparams.pooling_type) {
             case LLAMA_POOLING_TYPE_NONE:
+            case LLAMA_POOLING_TYPE_SPARSE:
                 {
                     // extract token embeddings
                     GGML_ASSERT(embd.data != nullptr);
-                    const uint32_t n_embd_out = hparams.n_embd_out();
+                    const uint32_t n_embd_out = n_embd_row();
 
                     GGML_ASSERT(n_tokens*n_embd_out <= (int64_t) embd.size);
                     ggml_backend_tensor_get_async(backend_embd, t_embd, embd.data, 0, n_tokens*n_embd_out*sizeof(float));
@@ -2067,10 +2076,11 @@ int llama_context::decode(const llama_batch_ext & batch_inp) {
 
             switch (cparams.pooling_type) {
                 case LLAMA_POOLING_TYPE_NONE:
+                case LLAMA_POOLING_TYPE_SPARSE:
                     {
                         // extract token embeddings
                         GGML_ASSERT(embd.data != nullptr);
-                        const uint32_t n_embd_out = hparams.n_embd_out();
+                        const uint32_t n_embd_out = n_embd_row();
                         float * embd_out = embd.data + n_outputs_prev*n_embd_out;
 
                         if (n_outputs) {
@@ -2250,7 +2260,7 @@ uint32_t llama_context::output_reserve(int32_t n_outputs) {
     size_t embd_layer_inp_float_count = 0;
 
     logits.size     = has_logits     ? n_vocab*n_outputs_max     : 0;
-    embd.size       = has_embd       ? n_embd_out*n_outputs_max  : 0;
+    embd.size       = has_embd       ? n_embd_row()*n_outputs_max : 0;
     embd_nextn.size = has_embd_nextn ? n_embd_out*n_outputs_max  : 0;
 
     if (has_embd_nextn && !cparams.embeddings_nextn_masked) {
@@ -2435,8 +2445,9 @@ void llama_context::output_reorder() {
         }
 
         if (embd.size > 0) {
-            for (uint64_t k = 0; k < n_embd_out; k++) {
-                std::swap(embd.data[i0*n_embd_out + k], embd.data[i1*n_embd_out + k]);
+            const uint64_t n_row = n_embd_row();
+            for (uint64_t k = 0; k < n_row; k++) {
+                std::swap(embd.data[i0*n_row + k], embd.data[i1*n_row + k]);
             }
         }
 

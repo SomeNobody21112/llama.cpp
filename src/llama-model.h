@@ -759,6 +759,12 @@ struct llama_model {
     struct ggml_tensor * cls_out   = nullptr;
     struct ggml_tensor * cls_out_b = nullptr;
     struct ggml_tensor * cls_norm  = nullptr;
+
+    // multi-vector retrieval heads (BGE-M3): ColBERT vectors and sparse lexical weights
+    struct ggml_tensor * colbert   = nullptr;
+    struct ggml_tensor * colbert_b = nullptr;
+    struct ggml_tensor * sparse    = nullptr;
+    struct ggml_tensor * sparse_b  = nullptr;
     struct ggml_tensor * cls_norm_b = nullptr;
 
     struct ggml_tensor * conv1d   = nullptr;

@@ -181,6 +181,7 @@ extern "C" {
         LLAMA_POOLING_TYPE_CLS  = 2,
         LLAMA_POOLING_TYPE_LAST = 3,
         LLAMA_POOLING_TYPE_RANK = 4, // used by reranking models to attach the classification head to the graph
+        LLAMA_POOLING_TYPE_SPARSE = 5, // one lexical weight per token from the model's sparse head (e.g. BGE-M3)
     };
 
     enum llama_attention_type {
@@ -1151,6 +1152,8 @@ extern "C" {
     // the embeddings for which llama_batch.logits[i] != 0 are stored contiguously
     // in the order they have appeared in the batch.
     // shape: [n_outputs*n_embd]
+    // when pooling_type == LLAMA_POOLING_TYPE_SPARSE, each token has a single lexical weight instead
+    // shape: [n_outputs]
     // Otherwise, returns NULL.
     // TODO: deprecate in favor of llama_get_embeddings_ith() (ref: https://github.com/ggml-org/llama.cpp/pull/14853#issuecomment-3113143522)
     LLAMA_API float * llama_get_embeddings(struct llama_context * ctx);
@@ -1158,12 +1161,12 @@ extern "C" {
     // Get the embeddings for the ith token. For positive indices, Equivalent to:
     // llama_get_embeddings(ctx) + ctx->output_ids[i]*n_embd
     // Negative indices can be used to access embeddings in reverse order, -1 is the last embedding.
-    // shape: [n_embd] (1-dimensional)
+    // shape: [n_embd] (1-dimensional), or [1] when pooling_type == LLAMA_POOLING_TYPE_SPARSE
     // returns NULL for invalid ids.
     LLAMA_API float * llama_get_embeddings_ith(struct llama_context * ctx, int32_t i);
 
     // Get the embeddings for a sequence id
-    // Returns NULL if pooling_type is LLAMA_POOLING_TYPE_NONE
+    // Returns NULL if pooling_type is LLAMA_POOLING_TYPE_NONE or LLAMA_POOLING_TYPE_SPARSE
     // when pooling_type == LLAMA_POOLING_TYPE_RANK, returns float[n_cls_out] with the rank(s) of the sequence
     // otherwise: float[n_embd] (1-dimensional)
     LLAMA_API float * llama_get_embeddings_seq(struct llama_context * ctx, llama_seq_id seq_id);

@@ -168,8 +168,8 @@ int main(int argc, char ** argv) {
     const int n_ctx = llama_n_ctx(ctx);
 
     const enum llama_pooling_type pooling_type = llama_pooling_type(ctx);
-    if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
-        LOG_ERR("%s: pooling type NONE not supported\n", __func__);
+    if (pooling_type == LLAMA_POOLING_TYPE_NONE || pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
+        LOG_ERR("%s: pooling type NONE or SPARSE not supported\n", __func__);
         return 1;
     }
 

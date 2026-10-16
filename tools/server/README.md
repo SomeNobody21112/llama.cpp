@@ -173,7 +173,7 @@ For the full list of features, please refer to [server's changelog](https://gith
 | `-sp, --special` | special tokens output enabled (default: false) |
 | `--warmup, --no-warmup` | whether to perform warmup with an empty run (default: enabled) |
 | `--spm-infill` | use Suffix/Prefix/Middle pattern for infill (instead of Prefix/Suffix/Middle) as some models prefer this. (default: disabled) |
-| `--pooling {none,mean,cls,last,rank}` | pooling type for embeddings, use model default if unspecified<br/>(env: LLAMA_ARG_POOLING) |
+| `--pooling {none,mean,cls,last,rank,sparse}` | pooling type for embeddings, use model default if unspecified<br/>(env: LLAMA_ARG_POOLING) |
 | `-np, --parallel N` | number of server slots (default: -1, -1 = auto)<br/>(env: LLAMA_ARG_N_PARALLEL) |
 | `-cb, --cont-batching, -nocb, --no-cont-batching` | whether to enable continuous batching (a.k.a dynamic batching) (default: enabled)<br/>(env: LLAMA_ARG_CONT_BATCHING) |
 | `-mm, --mmproj FILE` | path to a multimodal projector file. see tools/mtmd/README.md<br/>note: if -hf is used, this argument can be omitted<br/>(env: LLAMA_ARG_MMPROJ) |
@@ -941,6 +941,8 @@ To use this endpoint with POST method, you need to start server with `--props`
 ### POST `/embeddings`: non-OpenAI-compatible embeddings API
 
 This endpoint supports all poolings, including `--pooling none`. When the pooling is `none`, the responses will contain the *unnormalized* embeddings for *all* input tokens. For all other pooling types, only the pooled embeddings are returned, normalized using Euclidean norm.
+
+With `--pooling sparse` (models with a sparse head, such as [BGE-M3](https://huggingface.co/BAAI/bge-m3)), `embedding` is an object that maps token ids to lexical weights instead, in the same format as the `lexical_weights` of FlagEmbedding: `{"index": 0, "embedding": {"33600": 0.2117, "1886": 0.1853}}`. See [the embedding example](../../examples/embedding/README.md#bge-m3-dense-sparse-and-colbert-retrieval) for how to use BGE-M3's three outputs.
 
 Note that the response format of this endpoint is different from `/v1/embeddings`.
 

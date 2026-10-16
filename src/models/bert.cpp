@@ -37,6 +37,11 @@ void llama_model_bert::load_arch_tensors(llama_model_loader &) {
     cls_out   = create_tensor(tn(LLM_TENSOR_CLS_OUT, "weight"), {n_embd, hparams.n_cls_out}, TENSOR_NOT_REQUIRED);
     cls_out_b = create_tensor(tn(LLM_TENSOR_CLS_OUT, "bias"),   {hparams.n_cls_out},         TENSOR_NOT_REQUIRED);
 
+    colbert   = create_tensor(tn(LLM_TENSOR_COLBERT, "weight"), {n_embd, n_embd}, TENSOR_NOT_REQUIRED);
+    colbert_b = create_tensor(tn(LLM_TENSOR_COLBERT, "bias"),   {n_embd},         TENSOR_NOT_REQUIRED);
+    sparse    = create_tensor(tn(LLM_TENSOR_SPARSE,  "weight"), {n_embd, 1},      TENSOR_NOT_REQUIRED);
+    sparse_b  = create_tensor(tn(LLM_TENSOR_SPARSE,  "bias"),   {1},              TENSOR_NOT_REQUIRED);
+
     tok_norm   = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD_NORM, "weight", 0), {n_embd}, 0);
     tok_norm_b = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD_NORM, "bias",   0), {n_embd}, 0);
 

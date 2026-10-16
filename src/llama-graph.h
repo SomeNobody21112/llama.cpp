@@ -1432,7 +1432,11 @@ struct llm_graph_context {
             ggml_tensor * cls_b,
             ggml_tensor * cls_out,
             ggml_tensor * cls_out_b,
-            ggml_tensor * cls_norm) const;
+            ggml_tensor * cls_norm,
+            ggml_tensor * colbert,
+            ggml_tensor * colbert_b,
+            ggml_tensor * sparse,
+            ggml_tensor * sparse_b) const;
 
     //
     // logits

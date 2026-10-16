@@ -1203,6 +1203,10 @@ void common_embd_normalize(const float * inp, float * out, int n, int embd_norm)
 
 float common_embd_similarity_cos(const float * embd1, const float * embd2, int n);
 
+// lexical weights of a sparse embedding (LLAMA_POOLING_TYPE_SPARSE): the highest weight of each token,
+// skipping control and unknown tokens and zero weights
+std::map<llama_token, float> common_embd_sparse(const llama_vocab * vocab, const llama_token * tokens, const float * weights, int n);
+
 //
 // Control vector utils
 //

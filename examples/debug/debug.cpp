@@ -37,6 +37,7 @@ static void print_usage(int /*argc*/, char ** argv) {
 static bool has_pooling(llama_context * ctx) {
     switch (llama_pooling_type(ctx)) {
         case LLAMA_POOLING_TYPE_NONE:
+        case LLAMA_POOLING_TYPE_SPARSE:
         case LLAMA_POOLING_TYPE_UNSPECIFIED:
             return false;
         default:

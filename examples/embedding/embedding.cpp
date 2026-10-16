@@ -54,7 +54,7 @@ static void batch_decode(llama_context * ctx, common_batch & batch, float * outp
         const float * embd = nullptr;
         int embd_pos = 0;
 
-        if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
+        if (pooling_type == LLAMA_POOLING_TYPE_NONE || pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
             // try to get token embeddings
             embd = llama_get_embeddings_ith(ctx, i);
             embd_pos = i;
@@ -67,7 +67,8 @@ static void batch_decode(llama_context * ctx, common_batch & batch, float * outp
         }
 
         float * out = output + embd_pos * n_embd_out;
-        common_embd_normalize(embd, out, n_embd_out, embd_norm);
+        // lexical weights are compared across texts as they are, so they are not normalized
+        common_embd_normalize(embd, out, n_embd_out, pooling_type == LLAMA_POOLING_TYPE_SPARSE ? -1 : embd_norm);
     }
 }
 
@@ -245,8 +246,10 @@ int main(int argc, char ** argv) {
     common_batch batch(ctx);
 
     // count number of embeddings
+    const bool per_token = pooling_type == LLAMA_POOLING_TYPE_NONE || pooling_type == LLAMA_POOLING_TYPE_SPARSE;
+
     int n_embd_count = 0;
-    if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
+    if (per_token) {
         for (int k = 0; k < n_prompts; k++) {
             n_embd_count += inputs[k].size();
         }
@@ -255,7 +258,7 @@ int main(int argc, char ** argv) {
     }
 
     // allocate output
-    const int n_embd_out = llama_model_n_embd_out(model);
+    const int n_embd_out = pooling_type == LLAMA_POOLING_TYPE_SPARSE ? 1 : llama_model_n_embd_out(model);
     std::vector<float> embeddings(n_embd_count * n_embd_out, 0);
     float * emb = embeddings.data();
 
@@ -272,7 +275,7 @@ int main(int argc, char ** argv) {
         if (batch.size() + n_toks > n_batch || s >= n_seq_max) {
             float * out = emb + e * n_embd_out;
             batch_decode(ctx, batch, out, s, n_embd_out, params.embd_normalize);
-            e += pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.size() : s;
+            e += per_token ? batch.size() : s;
             s = 0;
             batch.clear();
         }
@@ -286,10 +289,55 @@ int main(int argc, char ** argv) {
     float * out = emb + e * n_embd_out;
     batch_decode(ctx, batch, out, s, n_embd_out, params.embd_normalize);
 
+    std::vector<std::map<llama_token, float>> lexical_weights;
+    if (pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
+        const float * w = emb;
+        for (const auto & inp : inputs) {
+            lexical_weights.push_back(common_embd_sparse(vocab, inp.data(), w, inp.size()));
+            w += inp.size();
+        }
+    }
+
     if (params.embd_out.empty()) {
         LOG("\n");
 
-        if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
+        if (pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
+            for (int j = 0; j < n_prompts; j++) {
+                // highest weights first
+                std::vector<std::pair<llama_token, float>> sorted(lexical_weights[j].begin(), lexical_weights[j].end());
+                std::sort(sorted.begin(), sorted.end(), [](const auto & a, const auto & b) { return a.second > b.second; });
+
+                LOG("lexical weights %d:", j);
+                for (const auto & [id, w] : sorted) {
+                    LOG(" '%s'=%.4f", common_token_to_piece(ctx, id).c_str(), w);
+                }
+                LOG("\n");
+            }
+
+            // lexical matching score: the sum of w_i * w_j over the tokens two texts share
+            if (n_prompts > 1) {
+                LOG("\n");
+                LOG("lexical matching score matrix:\n\n");
+                for (int i = 0; i < n_prompts; i++) {
+                    LOG("%6.6s ", prompts[i].c_str());
+                }
+                LOG("\n");
+                for (int i = 0; i < n_prompts; i++) {
+                    for (int j = 0; j < n_prompts; j++) {
+                        float score = 0.0f;
+                        for (const auto & [id, w] : lexical_weights[i]) {
+                            const auto it = lexical_weights[j].find(id);
+                            if (it != lexical_weights[j].end()) {
+                                score += w * it->second;
+                            }
+                        }
+                        LOG("%6.3f ", score);
+                    }
+                    LOG("%1.10s", prompts[i].c_str());
+                    LOG("\n");
+                }
+            }
+        } else if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
             for (int j = 0; j < n_embd_count; j++) {
                 LOG("embedding %d: ", j);
                 for (int i = 0; i < std::min(3, n_embd_out); i++) {
@@ -363,7 +411,20 @@ int main(int argc, char ** argv) {
         }
     }
 
-    if (params.embd_out == "json" || params.embd_out == "json+" || params.embd_out == "array") {
+    if (pooling_type == LLAMA_POOLING_TYPE_SPARSE && (params.embd_out == "json" || params.embd_out == "json+")) {
+        // one object per prompt: token id -> lexical weight
+        LOG("{\n  \"object\": \"list\",\n  \"data\": [\n");
+        for (int j = 0; j < n_prompts; j++) {
+            LOG("    {\n      \"object\": \"embedding\",\n      \"index\": %d,\n      \"embedding\": {", j);
+            bool first = true;
+            for (const auto & [id, w] : lexical_weights[j]) {
+                LOG("%s\"%d\":%1.7f", first ? "" : ",", id, w);
+                first = false;
+            }
+            LOG("}\n    }%s", j + 1 < n_prompts ? ",\n" : "\n");
+        }
+        LOG("  ]\n}\n");
+    } else if (params.embd_out == "json" || params.embd_out == "json+" || params.embd_out == "array") {
         const bool notArray = params.embd_out != "array";
 
         LOG(notArray ? "{\n  \"object\": \"list\",\n  \"data\": [\n" : "[");

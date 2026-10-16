@@ -1462,6 +1462,18 @@ json server_task_result_embd::to_json() {
 }
 
 json server_task_result_embd::to_json_non_oaicompat() {
+    if (lexical_weights) {
+        // keyed by token id, like the lexical_weights of FlagEmbedding's BGEM3FlagModel
+        json weights = json::object();
+        for (const auto & [id, w] : *lexical_weights) {
+            weights[std::to_string(id)] = w;
+        }
+        return json {
+            {"index",     index},
+            {"embedding", weights},
+        };
+    }
+
     return json {
         {"index",     index},
         {"embedding", embedding},

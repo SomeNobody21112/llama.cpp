@@ -2297,6 +2297,31 @@ private:
         res->n_tokens  = slot.task->n_tokens();
         res->res_type  = slot.task->params.res_type;
 
+        if (llama_pooling_type(slot.ctx_tgt) == LLAMA_POOLING_TYPE_SPARSE) {
+            std::vector<llama_token> tokens;
+            std::vector<float>       weights;
+
+            for (int i = 0; i < batch.size(); ++i) {
+                if (!batch.tokens[i].output || batch.tokens[i].seq_id != slot.id) {
+                    continue;
+                }
+
+                const float * w = llama_get_embeddings_ith(slot.ctx_tgt, i);
+                if (w == nullptr) {
+                    SLT_ERR(slot, "failed to get sparse embeddings, token = %d, seq_id = %d\n", batch.tokens[i].id, batch.tokens[i].seq_id);
+                    continue;
+                }
+
+                tokens.push_back(batch.tokens[i].id);
+                weights.push_back(*w);
+            }
+
+            res->lexical_weights = common_embd_sparse(vocab, tokens.data(), weights.data(), tokens.size());
+
+            queue_results.send(std::move(res));
+            return;
+        }
+
         const int n_embd_out = llama_model_n_embd_out(model_tgt);
 
         std::vector<float> embd_res(n_embd_out, 0.0f);
@@ -6131,6 +6156,11 @@ std::unique_ptr<server_res_generator> server_routes::handle_embeddings_impl(cons
         return res;
     }
 
+    if (res_type != TASK_RESPONSE_TYPE_NONE && meta->pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
+        res->error(format_error_response("Pooling type 'sparse' is not OAI compatible. Use the /embeddings endpoint instead", ERROR_TYPE_INVALID_REQUEST));
+        return res;
+    }
+
     const json body = json::parse(req.body);
 
     // for the shape of input/content, see tokenize_input_prompts()
@@ -6188,7 +6218,7 @@ std::unique_ptr<server_res_generator> server_routes::handle_embeddings_impl(cons
     int embd_normalize = params.embd_normalize;
     if (body.count("embd_normalize") != 0) {
         embd_normalize = body.at("embd_normalize").get<int>();
-        if (meta->pooling_type == LLAMA_POOLING_TYPE_NONE) {
+        if (meta->pooling_type == LLAMA_POOLING_TYPE_NONE || meta->pooling_type == LLAMA_POOLING_TYPE_SPARSE) {
             SRV_DBG("embd_normalize is not supported by pooling type %d, ignoring it\n", meta->pooling_type);
         }
     }

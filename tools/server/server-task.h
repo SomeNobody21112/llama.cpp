@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <list>
 #include <map>
+#include <optional>
 
 // TODO: prevent including the whole server-common.h as we only use server_tokens
 #include "server-common.h"
@@ -501,6 +502,9 @@ struct server_task_result_cmpl_partial : server_task_result {
 
 struct server_task_result_embd : server_task_result {
     std::vector<std::vector<float>> embedding;
+
+    // set instead of embedding when the pooling type is sparse
+    std::optional<std::map<llama_token, float>> lexical_weights;
 
     int32_t n_tokens;
 

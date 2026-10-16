@@ -1639,6 +1639,14 @@ class TensorNameMap:
             "head.norm", # modern-bert
             "scorer.0",  # laya
         ),
+
+        MODEL_TENSOR.COLBERT: (
+            "colbert_linear", # bge-m3
+        ),
+
+        MODEL_TENSOR.SPARSE: (
+            "sparse_linear", # bge-m3
+        ),
         #############################################################################
 
         MODEL_TENSOR.CONVNEXT_DW: (
